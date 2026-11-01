@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    name: Verify release version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Require tag to match Cargo.toml
+        shell: python
+        run: |
+          import os
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("Cargo.toml").read_text())["package"]["version"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          if tag != f"v{version}":
+              raise SystemExit(f"Release tag {tag!r} must equal v{version}")
+
+  formatting:
+    needs: version
+    uses: ./.github/workflows/formatting.yml
+
+  validation:
+    needs: version
+    uses: ./.github/workflows/validation.yml
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: [formatting, validation]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+    env:
+      RELEASE_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+      - run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Smoke-test and package executable
+        shell: python
+        run: |
+          import os
+          import shutil
+          import subprocess
+          import tarfile
+          import tempfile
+          import zipfile
+          from pathlib import Path
+
+          target = os.environ["RELEASE_TARGET"]
+          tag = os.environ["GITHUB_REF_NAME"]
+          windows = target.endswith("windows-msvc")
+          executable = "frogger.exe" if windows else "frogger"
+          binary = (Path("target") / target / "release" / executable).resolve()
+          # Run outside the checkout so local configuration cannot affect the checks.
+          with tempfile.TemporaryDirectory() as workspace:
+              subprocess.run([str(binary), "--help"], cwd=workspace, check=True)
+              result = subprocess.run(
+                  [str(binary), "--version"], cwd=workspace,
+                  check=True, capture_output=True, text=True,
+              )
+              if result.stdout.strip() != f"frogger {tag[1:]}":
+                  raise SystemExit(f"Unexpected executable version: {result.stdout!r}")
+
+          name = f"frogger-{tag}-{target}"
+          staging = Path("package") / name
+          staging.mkdir(parents=True)
+          shutil.copy2(binary, staging / executable)
+          if not windows:
+              (staging / executable).chmod(0o755)
+          for filename in ("README.md", "LICENSE", "frogger.example.toml"):
+              shutil.copy2(filename, staging / filename)
+          dist = Path("dist")
+          dist.mkdir()
+          if windows:
+              with zipfile.ZipFile(dist / f"{name}.zip", "w", zipfile.ZIP_DEFLATED) as archive:
+                  for file in sorted(staging.iterdir()):
+                      archive.write(file, arcname=f"{name}/{file.name}")
+          else:
+              with tarfile.open(dist / f"{name}.tar.gz", "w:gz") as archive:
+                  archive.add(staging, arcname=name)
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Generate SHA-256 checksums
+        working-directory: dist
+        run: sha256sum -- *.tar.gz *.zip > SHA256SUMS
+      - name: Publish release and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          prerelease=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            prerelease+=(--prerelease --latest=false)
+          fi
+          gh release create "$RELEASE_TAG" dist/* \
+            --verify-tag --generate-notes "${prerelease[@]}"

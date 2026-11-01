@@ -47,7 +47,7 @@ fn help_and_version_work_without_a_terminal_or_valid_config() {
     assert!(version.status.success());
     assert_eq!(
         String::from_utf8_lossy(&version.stdout).trim(),
-        "frogger 0.1.0"
+        format!("frogger {}", env!("CARGO_PKG_VERSION"))
     );
 }
 

@@ -7,6 +7,13 @@ graphics.
 
 ## Run
 
+Download a prebuilt executable from [GitHub Releases](https://github.com/RubikNube/Frogger/releases)
+for Linux x64, Windows x64, or macOS (Intel or Apple Silicon). Extract the archive
+and run `frogger` (`frogger.exe` on Windows) in an interactive terminal. Archives
+include this README, the license, and the example configuration. Release assets
+include a `SHA256SUMS` file for verifying downloads. Binaries are unsigned; Linux
+builds target GNU/Linux using Ubuntu 24.04.
+
 Install a current stable Rust toolchain, then run from this directory:
 
 ```sh
@@ -172,10 +179,35 @@ separate modules. Terminal state is restored on normal exit, Rust errors, and
 panics. Crossterm provides terminal support for Linux, macOS, and Windows.
 
 ```sh
-cargo fmt --check
-cargo clippy --all-targets -- -D warnings
-cargo test
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked --all-targets
 ```
 
 Use `frogger --help` for command-line usage and `frogger --version` for the
 installed version.
+
+GitHub Actions checks formatting and runs Clippy and tests on pull requests and
+pushes to `main`. Validation covers Linux x64, Windows x64, and macOS on Intel
+and Apple Silicon. Formatting failures require running `cargo fmt --all` locally
+and committing the result; CI does not modify branches.
+
+## Releasing
+
+1. Update `version` in `Cargo.toml`, run `cargo check` to update `Cargo.lock`,
+   and commit both files after the development checks pass.
+2. Push the commit to `main` and wait for validation and formatting to pass.
+3. Create and push a matching version tag, for example:
+
+   ```sh
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+The tag must equal `v` followed by the package version. The release workflow
+repeats formatting and validation against the tagged commit, builds and
+smoke-tests all four executables, and publishes a GitHub Release with generated
+notes, archives, and SHA-256 checksums only after every check and build succeeds.
+Versions with a prerelease suffix (for example, `0.2.0-rc.1`) produce prereleases.
+Publishing uses the built-in GitHub Actions token and does not require a custom
+secret. Releases do not publish to crates.io.
