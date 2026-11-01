@@ -1,3 +1,4 @@
+mod app;
 mod config;
 mod game;
 mod high_score;
@@ -13,8 +14,9 @@ use std::{
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 
-use config::{Action, Config};
-use game::{Game, STEP_MS};
+use app::App;
+use config::Config;
+use game::STEP_MS;
 use high_score::HighScore;
 use terminal::Terminal;
 
@@ -31,7 +33,8 @@ Options:
 
 Uses ./frogger.toml when present, otherwise built-in defaults.
 Move: h/j/k/l or arrows. Pause: p/Space. Restart: r. Quit: q/Ctrl-C.
-Press Enter to start. See frogger.example.toml for configuration.";
+Select a player, then Enter to start. Scores: F2. Players: F3.
+See frogger.example.toml for configuration.";
 
 fn arguments(args: impl Iterator<Item = std::ffi::OsString>) -> Result<Option<PathBuf>, String> {
     let mut args = args;
@@ -80,14 +83,22 @@ fn run() -> Result<(), String> {
 }
 
 fn play(config: Config, high_score: &mut HighScore) -> io::Result<()> {
-    let mut game = Game::new(config);
+    let mut app = App::new(config);
     let mut terminal = Terminal::enter()?;
+    let result = play_loop(&mut app, high_score, &mut terminal);
+    app.finish(high_score);
+    result
+}
+
+fn play_loop(app: &mut App, scores: &mut HighScore, terminal: &mut Terminal) -> io::Result<()> {
     let step = Duration::from_millis(u64::from(STEP_MS));
     let mut last = Instant::now();
     let mut accumulator = Duration::ZERO;
-    let mut fits = Terminal::fits(&game)?;
-    terminal.render(&game, high_score.value, high_score.warning.is_some())?;
+    let mut fits = Terminal::fits(app)?;
+    terminal.render(app, scores)?;
     loop {
+        let was_simulating = app.simulating();
+        let mut interrupted = false;
         if event::poll(Duration::from_millis(16))? {
             // Limit a burst so pasted text or key-repeat cannot starve the clock.
             for _ in 0..32 {
@@ -102,20 +113,18 @@ fn play(config: Config, high_score: &mut HighScore) -> io::Result<()> {
                             .modifiers
                             .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
                         {
-                            if let Some(action) = game.config.controls.action(key.code) {
-                                if action == Action::Quit {
-                                    return Ok(());
-                                }
-                                if fits || action == Action::Restart {
-                                    game.action(action);
-                                    high_score.record(game.score);
-                                }
-                            } else if key.code == KeyCode::Enter && fits {
-                                game.start();
+                            let before = app.simulating();
+                            if app.key(key.code, scores, fits) {
+                                return Ok(());
                             }
+                            interrupted |= before != app.simulating();
+                            fits = Terminal::fits(app)?;
                         }
                     }
-                    Event::Resize(_, _) => {}
+                    Event::Resize(_, _) => {
+                        interrupted = true;
+                        fits = Terminal::fits(app)?;
+                    }
                     _ => {}
                 }
                 if !event::poll(Duration::ZERO)? {
@@ -124,11 +133,11 @@ fn play(config: Config, high_score: &mut HighScore) -> io::Result<()> {
             }
         }
         let now = Instant::now();
-        let new_fits = Terminal::fits(&game)?;
-        if fits && new_fits && game.state == game::State::Playing {
+        let new_fits = Terminal::fits(app)?;
+        if fits && new_fits && was_simulating && app.simulating() && !interrupted {
             accumulator += (now - last).min(Duration::from_millis(250));
             while accumulator >= step {
-                game.tick();
+                app.tick(scores);
                 accumulator -= step;
             }
         } else {
@@ -136,8 +145,7 @@ fn play(config: Config, high_score: &mut HighScore) -> io::Result<()> {
         }
         fits = new_fits;
         last = now;
-        high_score.record(game.score);
-        terminal.render(&game, high_score.value, high_score.warning.is_some())?;
+        terminal.render(app, scores)?;
     }
 }
 

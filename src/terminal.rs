@@ -11,8 +11,10 @@ use crossterm::{
 };
 
 use crate::{
+    app::{App, Screen},
     config::{Kind, color},
     game::{Game, State},
+    high_score::HighScore,
 };
 
 pub struct Terminal {
@@ -44,17 +46,32 @@ impl Terminal {
         )
     }
 
-    pub fn fits(game: &Game) -> io::Result<bool> {
+    pub fn fits(app: &App) -> io::Result<bool> {
         let (width, height) = terminal::size()?;
-        let (needed_width, needed_height) = Self::dimensions(game);
+        let (needed_width, needed_height) = Self::screen_dimensions(app);
         Ok(width >= needed_width && height >= needed_height)
     }
 
-    pub fn render(&mut self, game: &Game, high_score: u64, score_warning: bool) -> io::Result<()> {
+    fn screen_dimensions(app: &App) -> (u16, u16) {
+        let (width, height) = Self::dimensions(&app.game);
+        (
+            width,
+            if matches!(app.screen, Screen::Game) {
+                height
+            } else {
+                height.max(21)
+            },
+        )
+    }
+
+    pub fn render(&mut self, app: &App, scores: &HighScore) -> io::Result<()> {
+        let game = &app.game;
+        let high_score = scores.value();
+        let score_warning = scores.warning.is_some();
         let (width, height) = terminal::size()?;
         self.out.clear();
         queue!(self.out, ResetColor, Clear(ClearType::All))?;
-        let (needed_width, needed_height) = Self::dimensions(game);
+        let (needed_width, needed_height) = Self::screen_dimensions(app);
         if width < needed_width || height < needed_height {
             let lines = [
                 "FROGGER - resize to continue".to_owned(),
@@ -70,7 +87,22 @@ impl Terminal {
         let top = (height - needed_height) / 2;
         let theme = &game.config.theme;
         queue!(self.out, SetForegroundColor(color(&theme.text).unwrap()))?;
-        self.line(left, top, "F R O G G E R", needed_width)?;
+        if !matches!(app.screen, Screen::Game) {
+            for (y, line) in app.menu_lines(scores).iter().enumerate() {
+                self.line(left, top + y as u16, line, needed_width)?;
+            }
+            queue!(self.out, ResetColor)?;
+            return self.flush_frame();
+        }
+        self.line(
+            left,
+            top,
+            &format!(
+                "F R O G G E R   Player: {}",
+                app.player.as_deref().unwrap_or("")
+            ),
+            needed_width,
+        )?;
         self.line(
             left,
             top + 1,
@@ -120,11 +152,15 @@ impl Terminal {
         }
         let bottom = top + 5 + game.home_y() as u16;
         self.line(board_left, bottom, &border, needed_width)?;
-        let status = match game.state {
-            State::Ready => "READY - Enter to start",
-            State::Playing => &game.message,
-            State::Paused => "PAUSED - use your pause key to resume",
-            State::GameOver => "GAME OVER - restart for a fresh game",
+        let status: &str = if !app.notice.is_empty() {
+            &app.notice
+        } else {
+            match game.state {
+                State::Ready => "READY - Enter to start",
+                State::Playing => &game.message,
+                State::Paused => "PAUSED - use your pause key to resume",
+                State::GameOver => "GAME OVER - restart for a fresh game",
+            }
         };
         self.line(left, bottom + 1, status, needed_width)?;
         let controls = &game.config.controls;
@@ -145,9 +181,11 @@ impl Terminal {
             left,
             bottom + 3,
             &format!(
-                "Restart: {}  Quit: {}  Ctrl-C: exit",
+                "Restart: {}  Quit: {}  Scores: {}  Players: {}",
                 controls.restart.join(","),
-                controls.quit.join(",")
+                controls.quit.join(","),
+                controls.leaderboard.join(","),
+                controls.players.join(",")
             ),
             needed_width,
         )?;

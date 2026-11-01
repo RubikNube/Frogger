@@ -173,6 +173,8 @@ pub enum Action {
     Pause,
     Restart,
     Quit,
+    Leaderboard,
+    Players,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -185,6 +187,8 @@ pub struct Controls {
     pub pause: Vec<String>,
     pub restart: Vec<String>,
     pub quit: Vec<String>,
+    pub leaderboard: Vec<String>,
+    pub players: Vec<String>,
 }
 
 impl Default for Controls {
@@ -198,6 +202,8 @@ impl Default for Controls {
             pause: keys(&["p", "Space"]),
             restart: keys(&["r"]),
             quit: keys(&["q"]),
+            leaderboard: keys(&["F2"]),
+            players: keys(&["F3"]),
         }
     }
 }
@@ -211,6 +217,8 @@ pub fn key_code(name: &str) -> Option<KeyCode> {
         "Space" => KeyCode::Char(' '),
         "Esc" => KeyCode::Esc,
         "Tab" => KeyCode::Tab,
+        "F2" => KeyCode::F(2),
+        "F3" => KeyCode::F(3),
         _ if name.len() == 1 && name.as_bytes()[0].is_ascii_graphic() => {
             KeyCode::Char(name.chars().next()?)
         }
@@ -219,7 +227,7 @@ pub fn key_code(name: &str) -> Option<KeyCode> {
 }
 
 impl Controls {
-    pub fn bindings(&self) -> [(Action, &Vec<String>); 7] {
+    pub fn bindings(&self) -> [(Action, &Vec<String>); 9] {
         [
             (Action::Left, &self.left),
             (Action::Down, &self.down),
@@ -228,6 +236,8 @@ impl Controls {
             (Action::Pause, &self.pause),
             (Action::Restart, &self.restart),
             (Action::Quit, &self.quit),
+            (Action::Leaderboard, &self.leaderboard),
+            (Action::Players, &self.players),
         ]
     }
 
@@ -383,6 +393,7 @@ mod tests {
             "[controls]\nup = ['h']",
             "[controls]\nup = ['Ctrl-K']",
             "[controls]\nup = []",
+            "[controls]\nplayers = ['F2']",
             "lanes = []",
             "[[lanes]]\nkind = 'road'",
             "[[lanes]]\nkind = 'safe'\ngap = 4",

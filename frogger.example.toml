@@ -24,6 +24,8 @@ right = ["l", "Right"]
 pause = ["p", "Space"]
 restart = ["r"]
 quit = ["q"]
+leaderboard = ["F2"]
+players = ["F3"]
 
 # Lanes are ordered bottom to top. The start bank and home row are automatic.
 # Each obstacle pattern moves one cell every interval_ms milliseconds.

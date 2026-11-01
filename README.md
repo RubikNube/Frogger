@@ -36,10 +36,13 @@ interactive terminal rather than piping its output.
 
 | Action | Default keys |
 | --- | --- |
+| Select / create player | Arrow keys and Enter at launch |
 | Start | Enter |
 | Left / down / up / right | `h` / `j` / `k` / `l`, or arrow keys |
 | Pause / resume | `p` or Space |
 | Restart session | `r` (then Enter) |
+| Highscore table / return | F2 / Esc |
+| Switch player (Ready or Game Over) | F3 |
 | Quit | `q` or Ctrl-C |
 
 The footer displays the configured controls. Key presses and terminal key
@@ -62,22 +65,43 @@ Ctrl-C always exits, including while the terminal is too small.
 - Each completed round clears the homes and adds 10% of the initial lane speed,
   capped at three times the initial speed.
 
-## High score
+## Players and highscores
 
-The highest score appears above the board and is saved immediately whenever you
-beat it. It survives restarts, game over, quitting (including Ctrl-C), and later
-runs. All layouts share the same record by default.
+Choose a local player at launch, or select **Create player** and enter a name.
+Names contain 1–20 printable ASCII characters; surrounding spaces are trimmed
+and names must be unique regardless of case. There are no passwords or online
+accounts. Names are saved even when that player has no ranked games.
 
-The default save file is `frogger.highscore.toml` in the current working
-directory. Set `[game] high_score_file = "/path/to/best.toml"` to share a record
-across working directories, or use different paths for different layouts.
-Relative save paths are relative to the working directory. Parent directories
-are created automatically. Delete the save file while the game is closed to
-reset the record.
+Press **F2** to view the ten highest individual games, then **Esc** to return.
+The table shows rank, player, score, and the game’s start date in UTC
+(`YYYY-MM-DD`). The date is saved with each entry and stays the same as its score
+updates. Older entries without a saved date display **Unknown**.
+A player may appear multiple times;
+earlier games win ties. Viewing the table freezes the simulation and timer.
+The active player and overall highscore appear above the board.
 
-If loading or saving fails, play continues with an in-memory best and the display
-shows “storage unavailable”; the error is printed after exiting. Malformed save
-files are preserved for repair rather than overwritten.
+Press **F3** to switch players while Ready or at Game Over. To switch during a
+running or paused game, restart first. Restart keeps the current player selected.
+Enter starts a new game; only started games enter the table, including games
+with zero points. Restarting, quitting, and Ctrl-C all retain earned scores.
+Each game has one table entry that updates as points are earned. Scores are
+saved immediately, including scores below the overall record.
+
+Profiles, the top ten games, and the overall record are stored in
+`frogger.highscore.toml` in the current working directory. Set
+`[game] high_score_file = "/path/to/best.toml"` to share the file across working
+directories, or use different paths for different layouts. All layouts share
+the file by default. Relative save paths are relative to the working directory;
+parent directories are created automatically. Delete the save file while the
+game is closed to reset both players and scores.
+
+Existing single-score files load automatically. A positive old score appears as
+**Legacy** in the table, without creating a selectable player. The file upgrades
+to the versioned format on the next save; older game versions cannot read it.
+
+If loading or saving fails, play continues with in-memory profiles and scores.
+The display shows “storage unavailable”; the error is printed after exiting.
+Malformed or unsupported save files are preserved rather than overwritten.
 
 ## Configuration
 
@@ -120,18 +144,21 @@ right = ["d", "l", "Right"]
 | `crossing_seconds` | `60` | 1–3600 |
 | `speed_increase` | `0.1` | 0.0–1.0, added per round relative to initial speed |
 | `max_speed` | `3.0` | 1.0–10.0 times initial speed |
-| `high_score_file` | `"frogger.highscore.toml"` | Nonempty path to the persistent record |
+| `high_score_file` | `"frogger.highscore.toml"` | Nonempty path to saved profiles and highscores |
 
 Board height follows the lane count. The starting bank and home row are
 generated automatically, with five evenly spaced single-cell homes.
 
 ### Controls and colors
 
-`[controls]` contains `left`, `down`, `up`, `right`, `pause`, `restart`, and `quit`.
+`[controls]` contains `left`, `down`, `up`, `right`, `pause`, `restart`, `quit`,
+`leaderboard`, and `players`.
 Each is a nonempty array of keys. Supported keys are single printable ASCII
 characters (case-sensitive) and the names `Left`, `Down`, `Up`, `Right`, `Space`,
-`Esc`, and `Tab`. Duplicate bindings are rejected. Enter is reserved for starting;
+`Esc`, `Tab`, `F2`, and `F3`. Duplicate bindings are rejected. Enter is reserved for starting;
 Ctrl-C is reserved for exiting. Modified key combinations are not configurable.
+Player menus use arrow keys and Enter; Esc closes menus and the table. While
+entering a player name, printable keys type text instead of activating controls.
 
 `[theme]` contains `frog`, `vehicle`, `log`, `water`, `ground`, `home`, and `text`.
 Colors are `black`, `dark_grey`, `grey`, `white`, `red`, `green`, `yellow`, `blue`,
