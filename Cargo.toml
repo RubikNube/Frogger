@@ -1,0 +1,11 @@
+[package]
+name = "frogger"
+version = "0.1.0"
+edition = "2024"
+description = "A configurable terminal Frogger game with Vim controls"
+license = "MIT"
+
+[dependencies]
+crossterm = "0.29"
+serde = { version = "1", features = ["derive"] }
+toml = "1.1"

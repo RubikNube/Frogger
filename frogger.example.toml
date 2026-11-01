@@ -1,0 +1,103 @@
+# Copy to frogger.toml, or run: cargo run -- --config frogger.example.toml
+[game]
+width = 41
+lives = 3
+crossing_seconds = 60
+speed_increase = 0.1
+max_speed = 3.0
+high_score_file = "frogger.highscore.toml"
+
+[theme]
+frog = "green"
+vehicle = "red"
+log = "yellow"
+water = "blue"
+ground = "dark_green"
+home = "cyan"
+text = "white"
+
+[controls]
+left = ["h", "Left"]
+down = ["j", "Down"]
+up = ["k", "Up"]
+right = ["l", "Right"]
+pause = ["p", "Space"]
+restart = ["r"]
+quit = ["q"]
+
+# Lanes are ordered bottom to top. The start bank and home row are automatic.
+# Each obstacle pattern moves one cell every interval_ms milliseconds.
+[[lanes]]
+kind = "road"
+direction = "left"
+interval_ms = 450
+length = 3
+gap = 8
+offset = 0
+
+[[lanes]]
+kind = "road"
+direction = "right"
+interval_ms = 350
+length = 2
+gap = 7
+offset = 4
+
+[[lanes]]
+kind = "road"
+direction = "left"
+interval_ms = 550
+length = 5
+gap = 9
+offset = 7
+
+[[lanes]]
+kind = "road"
+direction = "right"
+interval_ms = 300
+length = 2
+gap = 8
+offset = 2
+
+[[lanes]]
+kind = "road"
+direction = "left"
+interval_ms = 400
+length = 3
+gap = 9
+offset = 5
+
+[[lanes]]
+kind = "safe"
+
+[[lanes]]
+kind = "river"
+direction = "right"
+interval_ms = 550
+length = 7
+gap = 3
+offset = 0
+
+[[lanes]]
+kind = "river"
+direction = "left"
+interval_ms = 450
+length = 6
+gap = 3
+offset = 3
+
+[[lanes]]
+kind = "river"
+direction = "right"
+interval_ms = 650
+length = 8
+gap = 3
+offset = 6
+
+[[lanes]]
+kind = "river"
+direction = "left"
+interval_ms = 500
+length = 7
+gap = 3
+offset = 1
